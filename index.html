@@ -94,9 +94,16 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 <script>
 // === FIREBASE: вставь сюда свой config из Firebase Console (Project settings → Web app) ===
 const firebaseConfig = {
-  apiKey: "PASTE_ME", authDomain: "PASTE_ME.firebaseapp.com",
-  databaseURL: "https://PASTE_ME-default-rtdb.firebaseio.com",
-  projectId: "PASTE_ME"
+  "projectId": "corequiz-daniil",
+  "appId": "1:664276362902:web:1fd30d26cdc027a04b84b7",
+  "databaseURL": "https://corequiz-daniil-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "storageBucket": "corequiz-daniil.firebasestorage.app",
+  "apiKey": "AIzaSyD2kJbudPbC3WuyJRgXuHW3UoWplcbK8jE",
+  "authDomain": "corequiz-daniil.firebaseapp.com",
+  "messagingSenderId": "664276362902",
+  "measurementId": "G-60HFQNWSHC",
+  "projectNumber": "664276362902",
+  "version": "2"
 };
 let db = null, dbReady = false;
 try { firebase.initializeApp(firebaseConfig); db = firebase.database(); dbReady = true; } catch(e) {}
