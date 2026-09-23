@@ -1,0 +1,23 @@
+[debug] [2026-09-23T05:48:27.665Z] ----------------------------------------------------------------------
+[debug] [2026-09-23T05:48:27.673Z] Command:       /data/data/com.termux/files/usr/bin/node /data/data/com.termux/files/usr/bin/firebase apps:list web --project corequiz-daniil
+[debug] [2026-09-23T05:48:27.675Z] CLI Version:   15.30.2
+[debug] [2026-09-23T05:48:27.675Z] Platform:      android
+[debug] [2026-09-23T05:48:27.676Z] Node Version:  v26.4.0
+[debug] [2026-09-23T05:48:27.677Z] Detected Agent: unknown
+[debug] [2026-09-23T05:48:27.677Z] Time:          Wed Sep 23 2026 10:48:27 GMT+0500 (Kazakhstan Time)
+[debug] [2026-09-23T05:48:27.678Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-23T05:48:27.721Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-23T05:48:27.725Z] > authorizing via signed-in user (bujlenkovdaniil@gmail.com)
+[debug] [2026-09-23T05:48:27.904Z] Checked if tokens are valid: true, expires at: 1790145916583
+[debug] [2026-09-23T05:48:27.904Z] Checked if tokens are valid: true, expires at: 1790145916583
+[debug] [2026-09-23T05:48:27.910Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/corequiz-daniil/webApps pageSize=100
+[debug] [2026-09-23T05:48:29.689Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/corequiz-daniil/webApps 404
+[debug] [2026-09-23T05:48:29.691Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/corequiz-daniil/webApps {"error":{"code":404,"message":"Firebase project 664276362902 not found.","status":"NOT_FOUND"}}
+[debug] [2026-09-23T05:48:29.699Z] Request to https://firebase.googleapis.com/v1beta1/projects/corequiz-daniil/webApps?pageSize=100 had HTTP Error: 404, Firebase project 664276362902 not found.
+[debug] [2026-09-23T05:48:30.187Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/corequiz-daniil/webApps?pageSize=100 had HTTP Error: 404, Firebase project 664276362902 not found.
+    at responseToError (/data/data/com.termux/files/usr/lib/node_modules/firebase-tools/lib/responseToError.js:53:12)
+    at RetryOperation._fn (/data/data/com.termux/files/usr/lib/node_modules/firebase-tools/lib/apiv2.js:415:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[error] 
+[error] Error: Failed to list Firebase WEB apps. See firebase-debug.log for more info.
