@@ -400,18 +400,19 @@ function playView(code){
   if(!saved){ nav('#/join/'+code); return; }
   const pid = saved.pid;
   const sRef = db.ref('sessions/'+code), myRef = db.ref(`participants/${code}/${pid}`);
-  let idx = 0, score = 0, streak = 0, done = false, questions = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null;
+  let idx = 0, score = 0, streak = 0, done = false, questions = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null, sessionStatus = 'lobby';
 
   sRef.on('value', snap=>{
     const s = snap.val(); if(!s) return;
     questions = s.questions || []; qSeconds = s.qSeconds || 20; shuffle = s.shuffle !== false;
+    sessionStatus = s.status;
     if(s.status === 'finished') forcedEnd = true;
     if(s.status === 'lobby' && drawnFor === -1){
       app.innerHTML = `<div class="panel center waiting"><h2>${s.title}</h2><p class="hint">Ожидание начала...</p></div>
         <button class="leaveBtn" id="leave" style="margin-top:14px">← Выйти</button>`;
       const lv = document.getElementById('leave'); if(lv) lv.onclick = ()=>nav('#/');
     }
-    if(s.status === 'running' || forcedEnd) tick();
+    tick();
   });
   myRef.once('value').then(snap=>{
     const p = snap.val() || {}; idx = p.idx||0; score = p.score||0; streak = p.streak||0; done = !!p.done; tick();
@@ -420,6 +421,7 @@ function playView(code){
   function tick(){
     if(!questions.length) return;
     if(done || forcedEnd){ clearInterval(timerInt); showResult(); return; }
+    if(sessionStatus !== 'running') return;
     if(drawnFor !== idx) drawQuestion();
   }
 
