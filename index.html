@@ -258,6 +258,7 @@ function render(){
   if(route==='host') return hostView(a);
   if(route==='join') return joinView(a);
   if(route==='play') return playView(a);
+  if(route==='watch') return watchView(a);
   homeView();
 }
 
@@ -396,25 +397,79 @@ function renderLeaderboard(list, total){
   });
 }
 
+function watchView(code){
+  const sRef = db.ref('sessions/'+code), pRef = db.ref('participants/'+code);
+  app.innerHTML = `<button class="leaveBtn" id="leave" style="margin-bottom:12px">← Выйти</button>
+    <div class="panel center"><label>РЕЖИМ НАБЛЮДАТЕЛЯ</label><h2 id="wtitle">…</h2></div>
+    <div id="watchBody"></div>`;
+  document.getElementById('leave').onclick = ()=>nav('#/');
+  db.ref('reactions/'+code).on('child_added', snap=>spawnReactionFloat(snap.val().emoji));
+
+  let total = 0, celebrated = false, bodyBuilt = false;
+  sRef.on('value', snap=>{
+    const s = snap.val(); if(!s) return;
+    total = (s.questions||[]).length;
+    document.getElementById('wtitle').textContent = s.title;
+    const wb = document.getElementById('watchBody');
+    if(s.status==='lobby'){
+      bodyBuilt = false;
+      wb.innerHTML = `<div class="panel center waiting" style="margin-top:12px"><p class="hint">Сессия ещё не началась...</p></div>`;
+    } else {
+      if(!bodyBuilt){
+        bodyBuilt = true;
+        wb.innerHTML = `<div class="panel" style="margin-top:12px"><div id="stats"></div><label>ЖИВОЙ ТОП</label><div id="board" style="margin-top:12px"></div></div>`;
+      }
+      pRef.on('value', psnap=>{
+        const list = Object.entries(psnap.val()||{}).map(([pid,v])=>({pid,...v}));
+        const finished = list.filter(p=>p.done).length;
+        const avgIdx = list.length ? Math.round(list.reduce((a,p)=>a+(p.idx||0),0)/list.length) : 0;
+        document.getElementById('stats').innerHTML = `<div class="stats-row">
+          <div><b>${list.length}</b><span>ИГРОКОВ</span></div>
+          <div><b>${finished}</b><span>ЗАВЕРШИЛИ</span></div>
+          <div><b>${avgIdx}/${total}</b><span>СРЕДНИЙ ВОПРОС</span></div></div>`;
+        renderLeaderboard(list, total);
+        if(s.status==='finished' && !celebrated && list.length){ celebrated = true; confettiBurst(); }
+      });
+    }
+  });
+}
+
 function joinView(prefill){
   const avatars = ['🦾','🐺','🦅','🐉','⚔️','🎯','🛡️','🚀','🔥','⚡'];
-  let selAvatar = avatars[0];
+  let selAvatar = avatars[0], role = 'player';
   app.innerHTML = `<button class="leaveBtn" id="back" style="margin-bottom:12px">← Назад</button>
     <div class="panel stack">
+    <div class="row2">
+      <button class="btn" id="rolePlayer" style="padding:10px">Участник</button>
+      <button class="btn ghost" id="roleWatch" style="padding:10px">Наблюдатель</button>
+    </div>
     <div><label>КОД СЕССИИ</label><input type="text" id="code" style="text-transform:uppercase" value="${prefill||''}"></div>
-    <div><label>ТВОЁ ИМЯ</label><input type="text" id="name"></div>
-    <div><label>ИКОНКА</label><div class="avatar-grid" id="avgrid">${avatars.map((a,i)=>`<button class="avatar-opt ${i===0?'sel':''}" data-a="${a}">${a}</button>`).join('')}</div></div>
+    <div id="playerFields">
+      <div><label>ТВОЁ ИМЯ</label><input type="text" id="name"></div>
+      <div><label>ИКОНКА</label><div class="avatar-grid" id="avgrid">${avatars.map((a,i)=>`<button class="avatar-opt ${i===0?'sel':''}" data-a="${a}">${a}</button>`).join('')}</div></div>
+    </div>
     <button class="btn" id="go">Войти</button><div id="err"></div></div>`;
   document.getElementById('back').onclick = ()=>nav('#/');
   document.querySelectorAll('.avatar-opt').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('.avatar-opt').forEach(x=>x.classList.remove('sel'));
     b.classList.add('sel'); selAvatar = b.dataset.a;
   });
-  document.getElementById('go').onclick = ()=>{
+  const rp = document.getElementById('rolePlayer'), rw = document.getElementById('roleWatch'), pf = document.getElementById('playerFields'), go = document.getElementById('go');
+  rp.onclick = ()=>{ role='player'; rp.className='btn'; rw.className='btn ghost'; pf.style.display=''; go.textContent='Войти'; };
+  rw.onclick = ()=>{ role='watch'; rw.className='btn'; rp.className='btn ghost'; pf.style.display='none'; go.textContent='Смотреть'; };
+  go.onclick = ()=>{
     const code = document.getElementById('code').value.trim().toUpperCase();
-    const name = document.getElementById('name').value.trim();
     const err = document.getElementById('err');
-    if(!code || !name){ err.innerHTML = '<div class="warn">Заполни код и имя</div>'; return; }
+    if(!code){ err.innerHTML = '<div class="warn">Введи код</div>'; return; }
+    if(role==='watch'){
+      db.ref('sessions/'+code).once('value').then(snap=>{
+        if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; return; }
+        nav('#/watch/'+code);
+      });
+      return;
+    }
+    const name = document.getElementById('name').value.trim();
+    if(!name){ err.innerHTML = '<div class="warn">Введи имя</div>'; return; }
     const sesRef = db.ref('sessions/'+code);
     sesRef.once('value').then(snap=>{
       if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; return; }
