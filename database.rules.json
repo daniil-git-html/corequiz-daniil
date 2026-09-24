@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "sessions": {
+      "$code": {
+        ".read": true,
+        ".write": "auth != null || !data.exists()"
+      }
+    },
+    "participants": {
+      "$code": {
+        ".read": true,
+        "$pid": {
+          ".write": true
+        }
+      }
+    },
+    "reactions": {
+      "$code": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}

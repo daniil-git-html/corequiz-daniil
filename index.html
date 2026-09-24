@@ -139,6 +139,13 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 .revrow.bad{border-color:var(--red)}
 .revq{font-weight:600;margin-bottom:3px;color:var(--white)}
 .revans{color:var(--dim);font-family:var(--font-m);font-size:11px}
+#devToggle{position:fixed;bottom:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid var(--panel-border);background:var(--panel-bg);backdrop-filter:blur(6px);z-index:900;font-size:14px;opacity:.45}
+#devConsole{display:none;position:fixed;left:0;right:0;bottom:0;background:var(--panel-bg);backdrop-filter:blur(14px);border-top:1px solid var(--panel-border);padding:16px;z-index:901}
+.ans.dev-hint{border-color:var(--gold);box-shadow:0 0 14px -4px var(--gold)}
+.dev-tag{color:var(--gold);font-size:10px;font-family:var(--font-m);margin-left:4px}
+@keyframes ownerGlow{0%,100%{box-shadow:0 0 10px -4px var(--cyan);border-color:var(--cyan)}50%{box-shadow:0 0 14px -3px var(--red);border-color:var(--red)}}
+.lbrow.owner{border-width:1.5px;animation:ownerGlow 2.6s ease-in-out infinite}
+.owner-mark{display:inline-block;width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--red));margin-left:6px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -146,9 +153,21 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
   <div class="top"><b id="logo">CoreQuiz</b><span>/ core.singl</span><span class="sp"></span><button class="themeBtn" id="themeBtn">🌙</button></div>
   <div id="app" style="flex:1"></div>
 </div>
+<button id="devToggle" title="dev">⚙</button>
+<div id="devConsole">
+  <div class="mono" style="font-size:11px;color:var(--dim);margin-bottom:8px">ВХОД ВЛАДЕЛЬЦА · core.singl</div>
+  <input type="password" id="devPass" placeholder="пароль">
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn" id="devSubmit" style="padding:10px 16px">Войти</button>
+    <button class="btn ghost" id="devLogout" style="padding:10px 16px">Выйти</button>
+    <button class="btn ghost" id="devClose" style="padding:10px 16px">Закрыть</button>
+  </div>
+  <div id="devMsg" class="hint" style="margin-top:8px"></div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 // === FIREBASE: вставь сюда свой config из Firebase Console (Project settings → Web app) ===
@@ -210,6 +229,23 @@ function showToast(text){
   setTimeout(()=>t.remove(), 2600);
 }
 function streakBadge(n){ return n>=2 ? '🔥'+n : ''; }
+
+// === DEV: реальный вход через Firebase Auth, пароль нигде не хранится в коде ===
+const ADMIN_EMAIL = 'core.singl@corequiz.local';
+function isDevMode(){ return dbReady && !!(firebase.auth().currentUser); }
+const devToggle = document.getElementById('devToggle'), devConsole = document.getElementById('devConsole');
+devToggle.onclick = ()=> devConsole.style.display = devConsole.style.display==='block' ? 'none' : 'block';
+document.getElementById('devClose').onclick = ()=> devConsole.style.display='none';
+document.getElementById('devLogout').onclick = ()=>{
+  firebase.auth().signOut().then(()=>{ const m=document.getElementById('devMsg'); m.textContent='Вы вышли'; m.style.color='var(--dim)'; });
+};
+document.getElementById('devSubmit').onclick = ()=>{
+  const p = document.getElementById('devPass').value.trim();
+  const msg = document.getElementById('devMsg');
+  firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, p)
+    .then(()=>{ msg.textContent='Вход выполнен'; msg.style.color='var(--green)'; })
+    .catch(()=>{ msg.textContent='Неверный пароль'; msg.style.color='var(--red)'; });
+};
 
 const themeBtn = document.getElementById('themeBtn');
 function setTheme(t){ document.documentElement.setAttribute('data-theme', t); themeBtn.textContent = t==='light' ? '☀️' : '🌙'; localStorage.setItem('cq_theme', t); }
@@ -345,7 +381,7 @@ function hostView(code){
         const names = Object.values(psnap.val() || {});
         const capNote = sessionData.maxPlayers ? ` / ${sessionData.maxPlayers}` : '';
         body.innerHTML = `<div class="panel" style="margin-top:12px"><label>ПОДКЛЮЧИЛИСЬ (${names.length}${capNote})</label>
-          <div class="plist">${names.map(p=>`<div class="prow">${p.avatar||'🎯'} ${p.name}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
+          <div class="plist">${names.map(p=>`<div class="prow">${p.avatar||'🎯'} ${p.name}${p.isDev?'<span class="owner-mark"></span>':''}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
           <div style="margin-top:14px"><button class="btn" id="start" ${names.length?'':'disabled'}>Начать тест</button></div></div>`;
         const st = document.getElementById('start');
         if(st) st.onclick = ()=>sRef.update({status:'running'});
@@ -377,8 +413,8 @@ function renderLeaderboard(list, total){
   el.querySelectorAll('.lbrow').forEach(r=>{ prevTop[r.dataset.pid] = r.getBoundingClientRect().top; });
   const sorted = list.slice().sort((a,b)=> (b.score||0)-(a.score||0) || (b.idx||0)-(a.idx||0));
   const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
-  el.innerHTML = sorted.map((p,i)=>`<div class="lbrow ${i<3?'r'+(i+1):''}" data-pid="${p.pid}">
-      <span class="rank">${medal(i)}</span><span class="nm">${p.avatar||'🎯'} ${p.name}</span>
+  el.innerHTML = sorted.map((p,i)=>`<div class="lbrow ${i<3?'r'+(i+1):''} ${p.isDev?'owner':''}" data-pid="${p.pid}">
+      <span class="rank">${medal(i)}</span><span class="nm">${p.avatar||'🎯'} ${p.name}${p.isDev?'<span class="owner-mark"></span>':''}</span>
       <span class="prog">${p.done?'✓':(p.idx||0)+'/'+total}</span>
       <span class="streak-badge">${streakBadge(p.streak||0)}</span>
       <span class="sc">${p.score||0}</span></div>`).join('') || '<span class="hint">Пока никого</span>';
@@ -476,7 +512,7 @@ function joinView(prefill){
       const s = snap.val();
       const doJoin = () => {
         const pid = genId();
-        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0}).then(()=>{
+        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0, isDev:isDevMode()}).then(()=>{
           localStorage.setItem('cq_'+code, JSON.stringify({pid, name}));
           nav('#/play/'+code);
         });
@@ -567,7 +603,7 @@ function playView(code){
         </svg><span class="timer-num" id="tnum">${qSeconds}</span></div>
       </div>
       <div class="qtext">${q.t}</div>
-      <div class="answers" id="ans">${order.map(origI=>`<button class="ans" data-i="${origI}">${q.o[origI]}</button>`).join('')}</div>
+      <div class="answers" id="ans">${order.map(origI=>`<button class="ans ${isDevMode()&&origI===q.c?'dev-hint':''}" data-i="${origI}">${q.o[origI]}${isDevMode()&&origI===q.c?'<span class="dev-tag">✓</span>':''}</button>`).join('')}</div>
       <button class="btn skip" id="skipBtn" style="margin-top:12px;width:100%">Пропустить →</button>
       <div class="reaction-bar">${['🔥','⚡','👏','💀'].map(e=>`<button class="reaction-btn" data-e="${e}">${e}</button>`).join('')}</div>`;
 
