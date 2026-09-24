@@ -121,6 +121,24 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .waiting{animation:pulse 1.4s ease-in-out infinite}
 .winbanner{font-family:var(--font-m);font-size:12px;letter-spacing:.2em;color:var(--gold);margin-bottom:6px}
+.streak-badge{font-family:var(--font-m);font-size:11px;color:var(--amber);flex:none;width:32px}
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--panel-bg);border:1px solid var(--cyan);border-radius:8px;padding:10px 16px;font-weight:600;color:var(--white);box-shadow:0 0 20px -6px var(--cyan-glow);z-index:997;backdrop-filter:blur(8px);animation:toastIn .3s var(--ease),toastOut .3s ease 2.2s forwards}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes toastOut{to{opacity:0;transform:translate(-50%,-10px)}}
+.reaction-bar{display:flex;gap:8px;justify-content:center;margin-top:14px}
+.reaction-btn{font-size:20px;padding:8px 14px;border:1px solid var(--panel-border);border-radius:8px;background:rgba(120,140,160,.06)}
+.reaction-btn:active{transform:scale(.9)}
+.reaction-float{position:fixed;bottom:10px;font-size:28px;pointer-events:none;z-index:998;animation:riseFloat 2.2s ease-out forwards}
+@keyframes riseFloat{0%{transform:translateY(0) scale(.8);opacity:1}100%{transform:translateY(-320px) scale(1.3);opacity:0}}
+.avatar-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.avatar-opt{font-size:22px;padding:10px 0;border:1.5px solid var(--panel-border);border-radius:6px;background:rgba(120,140,160,.06)}
+.avatar-opt.sel{border-color:var(--cyan);box-shadow:0 0 14px -4px var(--cyan-glow);background:rgba(0,229,255,.12)}
+.review{margin-top:18px;text-align:left}
+.revrow{border-left:3px solid var(--dim);padding:8px 10px;margin-bottom:8px;border-radius:4px;background:rgba(120,140,160,.05);font-size:13px}
+.revrow.ok{border-color:var(--green)}
+.revrow.bad{border-color:var(--red)}
+.revq{font-weight:600;margin-bottom:3px;color:var(--white)}
+.revans{color:var(--dim);font-family:var(--font-m);font-size:11px}
 </style>
 </head>
 <body>
@@ -178,6 +196,20 @@ function confettiBurst(){
   layer.appendChild(st);
   setTimeout(()=>layer.remove(), 4200);
 }
+function spawnReactionFloat(emoji){
+  const el = document.createElement('div');
+  el.className = 'reaction-float'; el.textContent = emoji;
+  el.style.left = (10+Math.random()*80)+'%';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 2300);
+}
+function showToast(text){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2600);
+}
+function streakBadge(n){ return n>=2 ? '🔥'+n : ''; }
 
 const themeBtn = document.getElementById('themeBtn');
 function setTheme(t){ document.documentElement.setAttribute('data-theme', t); themeBtn.textContent = t==='light' ? '☀️' : '🌙'; localStorage.setItem('cq_theme', t); }
@@ -296,6 +328,7 @@ function hostView(code){
   document.getElementById('cp').onclick = ()=>{ document.getElementById('lk').select(); document.execCommand('copy'); };
   document.getElementById('leave').onclick = ()=>nav('#/');
   new QRCode(document.getElementById('qr'), {text: joinUrl, width:150, height:150, colorDark:"#0a1c2e", colorLight:"#ffffff"});
+  db.ref('reactions/'+code).on('child_added', snap=>{ spawnReactionFloat(snap.val().emoji); snap.ref.remove(); });
 
   let sessionData = null, total = 0, celebrated = false;
   sRef.on('value', snap=>{
@@ -311,7 +344,7 @@ function hostView(code){
         const names = Object.values(psnap.val() || {});
         const capNote = sessionData.maxPlayers ? ` / ${sessionData.maxPlayers}` : '';
         body.innerHTML = `<div class="panel" style="margin-top:12px"><label>ПОДКЛЮЧИЛИСЬ (${names.length}${capNote})</label>
-          <div class="plist">${names.map(p=>`<div class="prow">${p.name}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
+          <div class="plist">${names.map(p=>`<div class="prow">${p.avatar||'🎯'} ${p.name}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
           <div style="margin-top:14px"><button class="btn" id="start" ${names.length?'':'disabled'}>Начать тест</button></div></div>`;
         const st = document.getElementById('start');
         if(st) st.onclick = ()=>sRef.update({status:'running'});
@@ -344,8 +377,9 @@ function renderLeaderboard(list, total){
   const sorted = list.slice().sort((a,b)=> (b.score||0)-(a.score||0) || (b.idx||0)-(a.idx||0));
   const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
   el.innerHTML = sorted.map((p,i)=>`<div class="lbrow ${i<3?'r'+(i+1):''}" data-pid="${p.pid}">
-      <span class="rank">${medal(i)}</span><span class="nm">${p.name}</span>
+      <span class="rank">${medal(i)}</span><span class="nm">${p.avatar||'🎯'} ${p.name}</span>
       <span class="prog">${p.done?'✓':(p.idx||0)+'/'+total}</span>
+      <span class="streak-badge">${streakBadge(p.streak||0)}</span>
       <span class="sc">${p.score||0}</span></div>`).join('') || '<span class="hint">Пока никого</span>';
   el.querySelectorAll('.lbrow').forEach(r=>{
     const pid = r.dataset.pid, newTop = r.getBoundingClientRect().top, oldTop = prevTop[pid];
@@ -363,12 +397,19 @@ function renderLeaderboard(list, total){
 }
 
 function joinView(prefill){
+  const avatars = ['🦾','🐺','🦅','🐉','⚔️','🎯','🛡️','🚀','🔥','⚡'];
+  let selAvatar = avatars[0];
   app.innerHTML = `<button class="leaveBtn" id="back" style="margin-bottom:12px">← Назад</button>
     <div class="panel stack">
     <div><label>КОД СЕССИИ</label><input type="text" id="code" style="text-transform:uppercase" value="${prefill||''}"></div>
     <div><label>ТВОЁ ИМЯ</label><input type="text" id="name"></div>
+    <div><label>ИКОНКА</label><div class="avatar-grid" id="avgrid">${avatars.map((a,i)=>`<button class="avatar-opt ${i===0?'sel':''}" data-a="${a}">${a}</button>`).join('')}</div></div>
     <button class="btn" id="go">Войти</button><div id="err"></div></div>`;
   document.getElementById('back').onclick = ()=>nav('#/');
+  document.querySelectorAll('.avatar-opt').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.avatar-opt').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel'); selAvatar = b.dataset.a;
+  });
   document.getElementById('go').onclick = ()=>{
     const code = document.getElementById('code').value.trim().toUpperCase();
     const name = document.getElementById('name').value.trim();
@@ -380,7 +421,7 @@ function joinView(prefill){
       const s = snap.val();
       const doJoin = () => {
         const pid = genId();
-        db.ref(`participants/${code}/${pid}`).set({name, score:0, idx:0, done:false, streak:0}).then(()=>{
+        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0}).then(()=>{
           localStorage.setItem('cq_'+code, JSON.stringify({pid, name}));
           nav('#/play/'+code);
         });
@@ -400,7 +441,16 @@ function playView(code){
   if(!saved){ nav('#/join/'+code); return; }
   const pid = saved.pid;
   const sRef = db.ref('sessions/'+code), myRef = db.ref(`participants/${code}/${pid}`);
-  let idx = 0, score = 0, streak = 0, done = false, questions = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null, sessionStatus = 'lobby';
+  let idx = 0, score = 0, streak = 0, done = false, questions = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null, sessionStatus = 'lobby', lastRank = null;
+
+  db.ref('participants/'+code).on('value', snap=>{
+    const list = Object.entries(snap.val()||{}).map(([id,v])=>({id,...v})).sort((a,b)=>(b.score||0)-(a.score||0));
+    const myIdx = list.findIndex(p=>p.id===pid);
+    if(myIdx===-1) return;
+    const rank = myIdx+1;
+    if(lastRank!==null && rank<lastRank && sessionStatus==='running') showToast('🔺 Поднялся на '+rank+' место!');
+    lastRank = rank;
+  });
 
   sRef.on('value', snap=>{
     const s = snap.val(); if(!s) return;
@@ -426,13 +476,22 @@ function playView(code){
   }
 
   function showResult(){
-    db.ref('participants/'+code).once('value').then(psnap=>{
+    Promise.all([db.ref('participants/'+code).once('value'), myRef.once('value')]).then(([psnap, mesnap])=>{
       const list = Object.entries(psnap.val()||{}).map(([id,v])=>({id,...v})).sort((a,b)=>(b.score||0)-(a.score||0));
       const rank = list.findIndex(p=>p.id===pid) + 1;
       const isTop3 = rank>0 && rank<=3;
+      const myAnswers = (mesnap.val()||{}).answers || {};
+      const reviewHtml = questions.map((q,i)=>{
+        const a = myAnswers[i];
+        const skipped = a===undefined || a===-1;
+        const correct = !skipped && a===q.c;
+        return `<div class="revrow ${correct?'ok':'bad'}"><div class="revq">${i+1}. ${q.t}</div>
+          <div class="revans">${skipped?'пропущено':'твой ответ: '+q.o[a]}${!correct?` · верный: ${q.o[q.c]}`:''}</div></div>`;
+      }).join('');
       app.innerHTML = `<div class="panel center">
         ${isTop3 ? `<div class="winbanner">${rank===1?'🥇 ПЕРВОЕ МЕСТО':rank===2?'🥈 ВТОРОЕ МЕСТО':'🥉 ТРЕТЬЕ МЕСТО'}</div>` : ''}
-        <h2>Тест завершён</h2><div class="code-big">${score}</div><p class="hint">очков · место ${rank || '—'} из ${list.length} · ${saved.name}</p></div>
+        <h2>Тест завершён</h2><div class="code-big">${score}</div><p class="hint">очков · место ${rank || '—'} из ${list.length} · ${saved.name}</p>
+        <div class="review">${reviewHtml}</div></div>
         <button class="leaveBtn" id="leave" style="margin-top:14px">← На главную</button>`;
       document.getElementById('leave').onclick = ()=>nav('#/');
       if(isTop3) confettiBurst();
@@ -446,7 +505,7 @@ function playView(code){
     const circ = 2*Math.PI*18;
     app.innerHTML = `
       <div class="qhead">
-        <div class="qn">ВОПРОС ${idx+1} / ${total}<br><span class="mono" style="color:var(--cyan)">${score} очк.</span></div>
+        <div class="qn">ВОПРОС ${idx+1} / ${total}<br><span class="mono" style="color:var(--cyan)">${score} очк. ${streakBadge(streak)}</span></div>
         <div class="timer-wrap"><svg class="timer-ring" viewBox="0 0 40 40">
           <circle class="timer-track" cx="20" cy="20" r="18"/>
           <circle class="timer-bar" id="tbar" cx="20" cy="20" r="18" stroke-dasharray="${circ}" stroke-dashoffset="0"/>
@@ -454,7 +513,8 @@ function playView(code){
       </div>
       <div class="qtext">${q.t}</div>
       <div class="answers" id="ans">${order.map(origI=>`<button class="ans" data-i="${origI}">${q.o[origI]}</button>`).join('')}</div>
-      <button class="btn skip" id="skipBtn" style="margin-top:12px;width:100%">Пропустить →</button>`;
+      <button class="btn skip" id="skipBtn" style="margin-top:12px;width:100%">Пропустить →</button>
+      <div class="reaction-bar">${['🔥','⚡','👏','💀'].map(e=>`<button class="reaction-btn" data-e="${e}">${e}</button>`).join('')}</div>`;
 
     const tbar = document.getElementById('tbar'), tnum = document.getElementById('tnum');
     requestAnimationFrame(()=>{ tbar.style.strokeDashoffset = circ; });
@@ -465,30 +525,39 @@ function playView(code){
       tnum.textContent = Math.max(remain,0);
       tbar.classList.toggle('warn', remain<=qSeconds*0.5 && remain>qSeconds*0.25);
       tbar.classList.toggle('danger', remain<=qSeconds*0.25);
-      if(remain<=0){ clearInterval(timerInt); commit(null, 0); }
+      if(remain<=0){ clearInterval(timerInt); if(navigator.vibrate) navigator.vibrate(50); commit(null, 0); }
     }, 1000);
+
+    document.querySelectorAll('.reaction-btn').forEach(b=>b.onclick=()=>{
+      db.ref('reactions/'+code).push({emoji:b.dataset.e, ts:Date.now()});
+      if(navigator.vibrate) navigator.vibrate(15);
+    });
 
     document.querySelectorAll('#ans .ans').forEach(b=>b.onclick=()=>{
       clearInterval(timerInt);
       const i = +b.dataset.i, ok = i===q.c;
       const pts = ok ? calcPoints(remain, qSeconds, streak) : 0;
+      if(navigator.vibrate) navigator.vibrate(ok ? 30 : [40,30,40]);
       b.classList.add(ok?'pick-ok':'pick-bad');
       if(ok){ const pop = document.createElement('span'); pop.className='pts-pop'; pop.textContent='+'+pts; b.appendChild(pop); }
       document.querySelectorAll('#ans .ans').forEach(x=>x.disabled=true);
       document.getElementById('skipBtn').disabled = true;
       setTimeout(()=>commit(i, pts), 550);
     });
-    document.getElementById('skipBtn').onclick = ()=>{ clearInterval(timerInt); commit(null, 0); };
+    document.getElementById('skipBtn').onclick = ()=>{ clearInterval(timerInt); if(navigator.vibrate) navigator.vibrate(15); commit(null, 0); };
   }
 
   function commit(optIndex, pts){
     const q = questions[idx];
     const ok = optIndex !== null && optIndex === q.c;
+    const qIndex = idx;
     score += pts;
     streak = ok ? streak+1 : 0;
     idx++;
     done = idx >= questions.length;
-    myRef.update({score, idx, done, streak});
+    const upd = {score, idx, done, streak};
+    upd['answers/'+qIndex] = (optIndex===null ? -1 : optIndex);
+    myRef.update(upd);
     tick();
   }
 }
