@@ -376,6 +376,8 @@ D) Мощность"></textarea>
     });
     const l = document.getElementById('launch');
     if(l) l.onclick = ()=>{
+      if(l.disabled) return;
+      l.disabled = true; l.textContent = 'Запускаем...';
       const title = document.getElementById('title').value.trim() || 'Тест';
       const qSeconds = Math.max(5, +document.getElementById('secs').value || 20);
       const maxPlayers = Math.max(0, +document.getElementById('maxp').value || 0);
@@ -384,7 +386,8 @@ D) Мощность"></textarea>
       db.ref('sessions/'+code).set({
         title, status:'lobby', qSeconds, maxPlayers, shuffle, createdAt:Date.now(),
         questions: qs.map(q=>({t:q.text, o:q.options.map(o=>o.text), c:q.options.findIndex(o=>o.correct)}))
-      }).then(()=>nav('#/host/'+code));
+      });
+      nav('#/host/'+code);
     };
   }
 }
@@ -527,32 +530,34 @@ function joinView(prefill){
   rp.onclick = ()=>{ role='player'; rp.className='btn'; rw.className='btn ghost'; pf.style.display=''; go.textContent='Войти'; };
   rw.onclick = ()=>{ role='watch'; rw.className='btn'; rp.className='btn ghost'; pf.style.display='none'; go.textContent='Смотреть'; };
   go.onclick = ()=>{
+    if(go.disabled) return;
     const code = document.getElementById('code').value.trim().toUpperCase();
     const err = document.getElementById('err');
     if(!code){ err.innerHTML = '<div class="warn">Введи код</div>'; return; }
     if(role==='watch'){
+      go.disabled = true; go.textContent = 'Подключение...';
       db.ref('sessions/'+code).once('value').then(snap=>{
-        if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; return; }
+        if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; go.disabled=false; go.textContent='Смотреть'; return; }
         nav('#/watch/'+code);
       });
       return;
     }
     const name = document.getElementById('name').value.trim();
     if(!name){ err.innerHTML = '<div class="warn">Введи имя</div>'; return; }
+    go.disabled = true; go.textContent = 'Подключение...';
     const sesRef = db.ref('sessions/'+code);
     sesRef.once('value').then(snap=>{
-      if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; return; }
+      if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; go.disabled=false; go.textContent='Войти'; return; }
       const s = snap.val();
       const doJoin = () => {
         const pid = genId();
-        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0, isDev:isDevMode()}).then(()=>{
-          localStorage.setItem('cq_'+code, JSON.stringify({pid, name}));
-          nav('#/play/'+code);
-        });
+        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0, isDev:isDevMode()});
+        localStorage.setItem('cq_'+code, JSON.stringify({pid, name}));
+        nav('#/play/'+code);
       };
       if(s.maxPlayers){
         db.ref('participants/'+code).once('value').then(psnap=>{
-          if(Object.keys(psnap.val()||{}).length >= s.maxPlayers){ err.innerHTML = '<div class="warn">Комната заполнена</div>'; return; }
+          if(Object.keys(psnap.val()||{}).length >= s.maxPlayers){ err.innerHTML = '<div class="warn">Комната заполнена</div>'; go.disabled=false; go.textContent='Войти'; return; }
           doJoin();
         });
       } else doJoin();
