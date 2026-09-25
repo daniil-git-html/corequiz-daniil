@@ -231,6 +231,12 @@ function showToast(text){
   setTimeout(()=>t.remove(), 2600);
 }
 function streakBadge(n){ return n>=2 ? '🔥'+n : ''; }
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms||8000))
+  ]);
+}
 const AVATAR_IDS = ['hex','target','bolt','chevron','wave','diamond','node','shield'];
 const AVATAR_PATHS = {
   hex: '<path d="M12 3l7 4v10l-7 4-7-4V7z"/>',
@@ -536,17 +542,17 @@ function joinView(prefill){
     if(!code){ err.innerHTML = '<div class="warn">Введи код</div>'; return; }
     if(role==='watch'){
       go.disabled = true; go.textContent = 'Подключение...';
-      db.ref('sessions/'+code).once('value').then(snap=>{
+      withTimeout(db.ref('sessions/'+code).once('value')).then(snap=>{
         if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; go.disabled=false; go.textContent='Смотреть'; return; }
         nav('#/watch/'+code);
-      });
+      }).catch(()=>{ err.innerHTML = '<div class="warn">Не удалось подключиться — проверь интернет и код</div>'; go.disabled=false; go.textContent='Смотреть'; });
       return;
     }
     const name = document.getElementById('name').value.trim();
     if(!name){ err.innerHTML = '<div class="warn">Введи имя</div>'; return; }
     go.disabled = true; go.textContent = 'Подключение...';
     const sesRef = db.ref('sessions/'+code);
-    sesRef.once('value').then(snap=>{
+    withTimeout(sesRef.once('value')).then(snap=>{
       if(!snap.exists()){ err.innerHTML = '<div class="warn">Сессия не найдена</div>'; go.disabled=false; go.textContent='Войти'; return; }
       const s = snap.val();
       const doJoin = () => {
@@ -556,12 +562,12 @@ function joinView(prefill){
         nav('#/play/'+code);
       };
       if(s.maxPlayers){
-        db.ref('participants/'+code).once('value').then(psnap=>{
+        withTimeout(db.ref('participants/'+code).once('value')).then(psnap=>{
           if(Object.keys(psnap.val()||{}).length >= s.maxPlayers){ err.innerHTML = '<div class="warn">Комната заполнена</div>'; go.disabled=false; go.textContent='Войти'; return; }
           doJoin();
-        });
+        }).catch(()=>{ err.innerHTML = '<div class="warn">Не удалось подключиться — проверь интернет</div>'; go.disabled=false; go.textContent='Войти'; });
       } else doJoin();
-    });
+    }).catch(()=>{ err.innerHTML = '<div class="warn">Не удалось подключиться — проверь интернет и код</div>'; go.disabled=false; go.textContent='Войти'; });
   };
 }
 
