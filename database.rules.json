@@ -3,7 +3,7 @@
     "sessions": {
       "$code": {
         ".read": true,
-        ".write": "auth != null || !data.exists()"
+        ".write": true
       }
     },
     "participants": {
