@@ -1,6 +1,7 @@
 {
   "rules": {
     "sessions": {
+      ".indexOn": "createdAt",
       "$code": {
         ".read": true,
         ".write": true
