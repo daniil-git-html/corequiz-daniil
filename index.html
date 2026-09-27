@@ -45,7 +45,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .panel.pr::before,.panel.pr::after{border-color:var(--red)}
 .stack{display:flex;flex-direction:column;gap:12px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-textarea,input[type=text],input[type=number]{width:100%;background:rgba(120,140,160,.08);border:1px solid var(--panel-border);border-radius:4px;color:var(--white);font-family:var(--font-m);font-size:14px;padding:12px}
+textarea,input[type=text],input[type=number],input[type=password],select{width:100%;background:rgba(120,140,160,.08);border:1px solid var(--panel-border);border-radius:4px;color:var(--white);font-family:var(--font-m);font-size:14px;padding:12px}
 textarea{min-height:160px;resize:vertical}
 textarea:focus,input:focus{outline:none;border-color:var(--cyan)}
 label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font-m);display:block;margin-bottom:5px}
@@ -168,6 +168,18 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 @keyframes ownerGlow{0%,100%{box-shadow:0 0 10px -4px var(--cyan);border-color:var(--cyan)}50%{box-shadow:0 0 14px -3px var(--red);border-color:var(--red)}}
 .lbrow.owner{border-width:1.5px;animation:ownerGlow 2.6s ease-in-out infinite}
 .owner-mark{display:inline-block;width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--red));margin-left:6px;vertical-align:middle}
+.violation-overlay{position:fixed;inset:0;background:rgba(190,10,24,.95);display:flex;align-items:center;justify-content:center;z-index:1000;animation:vflash .25s ease}
+.violation-card{text-align:center;color:#fff;padding:24px}
+.vtitle{font-family:var(--font-d);font-weight:700;font-size:22px;color:#fff;text-shadow:0 0 12px rgba(255,255,255,.55);animation:vshake .4s}
+.vsub{margin-top:8px;color:#ffe0e3;font-size:14px}
+.vwarn{margin-top:14px;font-family:var(--font-m);font-size:15px;color:#fff;background:rgba(255,255,255,.18);display:inline-block;padding:6px 16px;border-radius:6px;letter-spacing:.1em}
+@keyframes vflash{from{background:rgba(255,0,20,1)}to{background:rgba(190,10,24,.95)}}
+@keyframes vshake{10%,90%{transform:translateX(-3px)}20%,80%{transform:translateX(5px)}30%,50%,70%{transform:translateX(-9px)}40%,60%{transform:translateX(9px)}}
+.dq-screen{border-color:var(--red)!important;background:linear-gradient(160deg,rgba(224,20,35,.3),rgba(10,5,10,.65))!important;color:#fff}
+.integrity-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,59,78,.35);border-radius:6px;margin-bottom:6px;font-size:12px;background:rgba(255,59,78,.06)}
+.integrity-row .iname{flex:1;color:var(--white)}
+.integrity-row .istat{font-family:var(--font-m);color:var(--red);font-size:11px}
+.integrity-row.dq{border-color:var(--red);background:rgba(255,59,78,.14)}
 @media (min-width:900px){
   .wrap{max-width:1100px;padding:36px 40px 70px}
   .top{font-size:13px;margin-bottom:32px}
@@ -212,7 +224,9 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 </div>
 <button id="devToggle" title="dev">⚙</button>
 <div id="devConsole">
-  <div class="mono" style="font-size:11px;color:var(--dim);margin-bottom:8px">ВХОД ВЛАДЕЛЬЦА · core.singl</div>
+  <div class="mono" style="font-size:11px;color:var(--dim);margin-bottom:8px">ВХОД АДМИНИСТРАТОРА</div>
+  <div class="hint" style="margin-bottom:8px">Хозяин сайта — оставь логин пустым. Остальные администраторы — впиши свой логин.</div>
+  <input type="text" id="devLogin" placeholder="логин (пусто для владельца)" style="margin-bottom:8px">
   <input type="password" id="devPass" placeholder="пароль">
   <div style="display:flex;gap:8px;margin-top:10px">
     <button class="btn" id="devSubmit" style="padding:10px 16px">Войти</button>
@@ -293,8 +307,15 @@ function withTimeout(promise, ms){
   ]);
 }
 let activeListeners = [];
+let domCleanups = [];
 function track(ref, event, cb){ ref.on(event, cb); activeListeners.push([ref, event, cb]); return cb; }
-function cleanupListeners(){ activeListeners.forEach(([ref,ev,cb])=>{ try{ ref.off(ev, cb); }catch(e){} }); activeListeners = []; }
+function trackDOM(target, event, cb){ target.addEventListener(event, cb); domCleanups.push(()=>target.removeEventListener(event, cb)); }
+function cleanupListeners(){
+  activeListeners.forEach(([ref,ev,cb])=>{ try{ ref.off(ev, cb); }catch(e){} });
+  activeListeners = [];
+  domCleanups.forEach(fn=>{ try{ fn(); }catch(e){} });
+  domCleanups = [];
+}
 const AVATAR_IDS = ['scope','flame','shield','blades','bolt','compass','circuit','hazard'];
 const AVATAR_PATHS = {
   scope: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
@@ -308,12 +329,13 @@ const AVATAR_PATHS = {
 };
 function avatarSVG(id, size){
   const s = size||18;
-  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">${AVATAR_PATHS[id]||AVATAR_PATHS.hex}</svg>`;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle">${AVATAR_PATHS[id]||AVATAR_PATHS.scope}</svg>`;
 }
 
 // === DEV: реальный вход через Firebase Auth, пароль нигде не хранится в коде ===
 const ADMIN_EMAIL = 'core.singl@corequiz.local';
 function isDevMode(){ return dbReady && !!(firebase.auth().currentUser); }
+function isOwnerMode(){ return dbReady && !!(firebase.auth().currentUser) && firebase.auth().currentUser.email === ADMIN_EMAIL; }
 const devToggle = document.getElementById('devToggle'), devConsole = document.getElementById('devConsole');
 devToggle.onclick = ()=> devConsole.style.display = devConsole.style.display==='block' ? 'none' : 'block';
 document.getElementById('devClose').onclick = ()=> devConsole.style.display='none';
@@ -321,11 +343,13 @@ document.getElementById('devLogout').onclick = ()=>{
   firebase.auth().signOut().then(()=>{ const m=document.getElementById('devMsg'); m.textContent='Вы вышли'; m.style.color='var(--dim)'; });
 };
 document.getElementById('devSubmit').onclick = ()=>{
+  const login = document.getElementById('devLogin').value.trim();
   const p = document.getElementById('devPass').value.trim();
+  const email = login ? (login.toLowerCase()+'@corequiz.local') : ADMIN_EMAIL;
   const msg = document.getElementById('devMsg');
-  firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, p)
+  firebase.auth().signInWithEmailAndPassword(email, p)
     .then(()=>{ msg.textContent='Вход выполнен'; msg.style.color='var(--green)'; })
-    .catch(()=>{ msg.textContent='Неверный пароль'; msg.style.color='var(--red)'; });
+    .catch(()=>{ msg.textContent='Неверный логин или пароль'; msg.style.color='var(--red)'; });
 };
 
 const themeBtn = document.getElementById('themeBtn');
@@ -400,6 +424,11 @@ function createView(){
       </div>
       <label class="chk"><input type="checkbox" id="shuffle" checked style="width:auto"> Перемешивать варианты ответов у каждого</label>
       <label class="chk"><input type="checkbox" id="shuffleQ" style="width:auto"> Перемешивать порядок вопросов у каждого</label>
+      <div><label>РЕЖИМ АНТИЧИТА</label><select id="anticheat">
+        <option value="off">Выключен</option>
+        <option value="standard" selected>Стандартный — уход со вкладки</option>
+        <option value="strict">Строгий — вкладка + полноэкранный режим</option>
+      </select><div class="hint" style="margin-top:6px">3 нарушения — дисквалификация. При нарушении текущий вопрос заменяется другим из этого же теста.</div></div>
       <div class="step">ШАГ 3 · ВОПРОСЫ</div>
       <div><div class="hint" style="margin-bottom:8px">Можно вставить все вопросы разом одним куском текста — просто следи, чтобы каждый начинался с номера («1.», «2.» и т.д.). Чтобы автоматически пометить правильный ответ, допиши у нужного варианта <span class="mono">[правильный]</span>, <span class="mono">[correct]</span>, <span class="mono">[+]</span> или <span class="mono">*</span> в конце строки. Если нигде не пометишь — после разбора просто нажми на верный вариант в списке ниже, он подставится сам.</div>
         <textarea id="src" placeholder="1. Что измеряется в амперах?
@@ -451,9 +480,10 @@ D) Мощность"></textarea>
       const maxPlayers = Math.max(0, +document.getElementById('maxp').value || 0);
       const shuffle = document.getElementById('shuffle').checked;
       const shuffleQuestions = document.getElementById('shuffleQ').checked;
+      const anticheat = document.getElementById('anticheat').value;
       const code = genCode();
       db.ref('sessions/'+code).set({
-        title, status:'lobby', qSeconds, maxPlayers, shuffle, shuffleQuestions, createdAt:Date.now(),
+        title, status:'lobby', qSeconds, maxPlayers, shuffle, shuffleQuestions, anticheat, createdAt:Date.now(),
         questions: qs.map(q=>({t:q.text, o:q.options.map(o=>o.text), c:q.options.findIndex(o=>o.correct)}))
       });
       nav('#/host/'+code);
@@ -487,14 +517,15 @@ function hostView(code){
         const names = Object.values(psnap.val() || {});
         const capNote = sessionData.maxPlayers ? ` / ${sessionData.maxPlayers}` : '';
         body.innerHTML = `<div class="panel" style="margin-top:12px"><label>ПОДКЛЮЧИЛИСЬ (${names.length}${capNote})</label>
-          <div class="plist">${names.map(p=>`<div class="prow">${avatarSVG(p.avatar||'scope',16)} ${p.name}${p.isDev?'<span class="owner-mark"></span>':''}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
+          <div class="plist">${names.map(p=>`<div class="prow">${avatarSVG(p.avatar||'scope',16)} ${p.name}${p.isOwner?'<span class="owner-mark"></span>':''}</div>`).join('') || '<span class="hint">Пока никого</span>'}</div>
           <div style="margin-top:14px"><button class="btn" id="start" ${names.length?'':'disabled'}>Начать тест</button></div></div>`;
         const st = document.getElementById('start');
         if(st) st.onclick = ()=>sRef.update({status:'running'});
       });
     } else {
       body.innerHTML = `<div class="panel" style="margin-top:12px"><div id="stats"></div><label>ЖИВОЙ ТОП</label><div id="board" style="margin-top:12px"></div>
-        ${sessionData.status==='running' ? '<button class="btn red ghost" id="forceEnd">Завершить для всех</button>' : '<div class="winbanner">🏆 РЕЗУЛЬТАТЫ</div>'}</div>`;
+        ${sessionData.status==='running' ? '<button class="btn red ghost" id="forceEnd">Завершить для всех</button>' : '<div class="winbanner">🏆 РЕЗУЛЬТАТЫ</div>'}</div>
+        <div class="panel" style="margin-top:12px" id="integrityPanel"><label>АНТИЧИТ-ЖУРНАЛ</label><div id="integrity" style="margin-top:10px"></div></div>`;
       const fe = document.getElementById('forceEnd');
       if(fe) fe.onclick = ()=>sRef.update({status:'finished'});
       track(pRef, 'value', psnap=>{
@@ -505,24 +536,26 @@ function hostView(code){
           <div><b>${list.length}</b><span>ИГРОКОВ</span></div>
           <div><b>${finished}</b><span>ЗАВЕРШИЛИ</span></div>
           <div><b>${avgIdx}/${total}</b><span>СРЕДНИЙ ВОПРОС</span></div></div>`;
-        renderLeaderboard(list, total);
+        renderLeaderboard(list, total, code);
         if(sessionData.status==='finished' && !celebrated && list.length){ celebrated = true; confettiBurst(); }
       });
     }
   }
 }
 
-function renderLeaderboard(list, total){
+function renderLeaderboard(list, total, code){
   const el = document.getElementById('board');
   if(!el) return;
+  const valid = list.filter(p=>!p.disqualified);
+  const flagged = list.filter(p=>(p.warnings||0)>0 || p.disqualified);
   const prevTop = {};
   el.querySelectorAll('.lbrow').forEach(r=>{ prevTop[r.dataset.pid] = r.getBoundingClientRect().top; });
-  const sorted = list.slice().sort((a,b)=> (b.score||0)-(a.score||0) || (b.idx||0)-(a.idx||0));
+  const sorted = valid.slice().sort((a,b)=> (b.score||0)-(a.score||0) || (b.idx||0)-(a.idx||0));
   const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
-  el.innerHTML = sorted.map((p,i)=>`<div class="lbrow ${i<3?'r'+(i+1):''} ${p.isDev?'owner':''}" data-pid="${p.pid}">
+  el.innerHTML = sorted.map((p,i)=>`<div class="lbrow ${i<3?'r'+(i+1):''} ${p.isOwner?'owner':''}" data-pid="${p.pid}">
       <span class="rank">${medal(i)}</span>
       <span class="lb-avatar">${avatarSVG(p.avatar||'scope',16)}</span>
-      <span class="lb-mid"><span class="nm">${p.name}${p.streak>=2?`<span class="streak-badge">🔥${p.streak}</span>`:''}${p.isDev?'<span class="owner-mark"></span>':''}</span>
+      <span class="lb-mid"><span class="nm">${p.name}${p.streak>=2?`<span class="streak-badge">🔥${p.streak}</span>`:''}${p.isOwner?'<span class="owner-mark"></span>':''}</span>
         <span class="lb-bar"><i style="width:${p.done?100:Math.round(((p.idx||0)/total)*100)}%"></i></span></span>
       <span class="sc">${p.score||0}</span></div>`).join('') || '<span class="hint">Пока никого</span>';
   el.querySelectorAll('.lbrow').forEach(r=>{
@@ -544,6 +577,17 @@ function renderLeaderboard(list, total){
     }
   });
   sorted.forEach(p=>{ lbPrevScores[p.pid] = p.score||0; });
+  const ig = document.getElementById('integrity');
+  if(ig){
+    ig.innerHTML = flagged.length ? flagged.map(p=>`<div class="integrity-row ${p.disqualified?'dq':''}">
+        <span class="iname">${avatarSVG(p.avatar||'scope',14)} ${p.name}</span>
+        <span class="istat">${p.disqualified?'🚫 ДИСКВАЛИФИЦИРОВАН':'⚠ '+(p.warnings||0)+'/3'}</span>
+        ${p.disqualified && code ? `<button class="btn ghost" data-pid="${p.pid}" style="padding:5px 10px;font-size:11px">Восстановить</button>`:''}
+      </div>`).join('') : '<span class="hint">Нарушений нет</span>';
+    ig.querySelectorAll('button[data-pid]').forEach(b=>b.onclick=()=>{
+      db.ref('participants/'+code+'/'+b.dataset.pid).update({disqualified:false, warnings:0});
+    });
+  }
 }
 const lbPrevScores = {};
 
@@ -628,7 +672,9 @@ function joinView(prefill){
       const s = snap.val();
       const doJoin = () => {
         const pid = genId();
-        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0, isDev:isDevMode()});
+        const qList = s.questions || [];
+        const qOrder = s.shuffleQuestions ? seededShuffle(qList.map((_,i)=>i), hashStr(pid)) : qList.map((_,i)=>i);
+        db.ref(`participants/${code}/${pid}`).set({name, avatar:selAvatar, score:0, idx:0, done:false, streak:0, isDev:isDevMode(), isOwner:isOwnerMode(), warnings:0, disqualified:false, qOrder});
         localStorage.setItem('cq_'+code, JSON.stringify({pid, name}));
         nav('#/play/'+code);
       };
@@ -647,7 +693,7 @@ function playView(code){
   if(!saved){ nav('#/join/'+code); return; }
   const pid = saved.pid;
   const sRef = db.ref('sessions/'+code), myRef = db.ref(`participants/${code}/${pid}`);
-  let idx = 0, score = 0, streak = 0, done = false, questions = [], qOrder = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null, sessionStatus = 'lobby', lastRank = null;
+  let idx = 0, score = 0, streak = 0, done = false, questions = [], qOrder = [], qSeconds = 20, shuffle = true, forcedEnd = false, drawnFor = -1, timerInt = null, sessionStatus = 'lobby', lastRank = null, anticheat = 'standard', warnings = 0, disqualified = false, antiCheatArmed = false;
 
   track(db.ref('participants/'+code), 'value', snap=>{
     const list = Object.entries(snap.val()||{}).map(([id,v])=>({id,...v})).sort((a,b)=>(b.score||0)-(a.score||0));
@@ -661,7 +707,7 @@ function playView(code){
   track(sRef, 'value', snap=>{
     const s = snap.val(); if(!s) return;
     questions = s.questions || []; qSeconds = s.qSeconds || 20; shuffle = s.shuffle !== false;
-    qOrder = s.shuffleQuestions ? seededShuffle(questions.map((_,i)=>i), hashStr(pid)) : questions.map((_,i)=>i);
+    anticheat = s.anticheat || 'standard';
     sessionStatus = s.status;
     if(s.status === 'finished') forcedEnd = true;
     if(s.status === 'lobby' && drawnFor === -1){
@@ -669,14 +715,66 @@ function playView(code){
         <button class="leaveBtn" id="leave" style="margin-top:14px">← Выйти</button>`;
       const lv = document.getElementById('leave'); if(lv) lv.onclick = ()=>nav('#/');
     }
+    if(s.status === 'running' && !antiCheatArmed){ antiCheatArmed = true; armAntiCheat(); }
     tick();
   });
   myRef.once('value').then(snap=>{
-    const p = snap.val() || {}; idx = p.idx||0; score = p.score||0; streak = p.streak||0; done = !!p.done; tick();
+    const p = snap.val() || {};
+    idx = p.idx||0; score = p.score||0; streak = p.streak||0; done = !!p.done;
+    qOrder = p.qOrder || questions.map((_,i)=>i);
+    warnings = p.warnings||0; disqualified = !!p.disqualified;
+    tick();
   });
+
+  function armAntiCheat(){
+    if(anticheat==='off') return;
+    trackDOM(document, 'visibilitychange', ()=>{
+      if(document.hidden && sessionStatus==='running' && !done && !disqualified && drawnFor===idx) registerViolation('Вкладка покинута');
+    });
+    if(anticheat==='strict'){
+      trackDOM(document, 'fullscreenchange', ()=>{
+        if(!document.fullscreenElement && sessionStatus==='running' && !done && !disqualified) registerViolation('Выход из полноэкранного режима');
+      });
+      if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    }
+  }
+
+  function registerViolation(reason){
+    warnings++;
+    if(navigator.vibrate) navigator.vibrate([60,40,60]);
+    if(warnings>=3){
+      disqualified = true;
+      clearInterval(timerInt);
+      myRef.update({warnings, disqualified:true});
+      showDisqualified();
+    } else {
+      if(idx < qOrder.length-1){
+        const last = qOrder.length-1;
+        const tmp = qOrder[idx]; qOrder[idx] = qOrder[last]; qOrder[last] = tmp;
+      }
+      myRef.update({warnings, qOrder});
+      showViolationBanner(reason, warnings);
+    }
+  }
+
+  function showViolationBanner(reason, n){
+    const ov = document.createElement('div');
+    ov.className = 'violation-overlay';
+    ov.innerHTML = `<div class="violation-card"><div class="vtitle">⚠ ${reason.toUpperCase()}</div><div class="vsub">Вопрос аннулирован — назначен новый</div><div class="vwarn">ПРЕДУПРЕЖДЕНИЕ ${n}/3</div></div>`;
+    document.body.appendChild(ov);
+    setTimeout(()=>{ ov.remove(); drawnFor=-1; tick(); }, 1800);
+  }
+
+  function showDisqualified(){
+    app.innerHTML = `<div class="panel pr center dq-screen"><div class="vtitle" style="font-size:26px">🚫 TEST INVALIDATED</div>
+      <p class="hint" style="color:#ffd9dc;margin-top:10px">Слишком много нарушений (${warnings}/3) — тест аннулирован, результат не учитывается в топе.</p></div>
+      <button class="leaveBtn" id="leave" style="margin-top:14px">← На главную</button>`;
+    document.getElementById('leave').onclick = ()=>nav('#/');
+  }
 
   function tick(){
     if(!questions.length) return;
+    if(disqualified){ clearInterval(timerInt); showDisqualified(); return; }
     if(done || forcedEnd){ clearInterval(timerInt); showResult(); return; }
     if(sessionStatus !== 'running') return;
     if(drawnFor !== idx) drawQuestion();
