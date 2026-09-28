@@ -142,6 +142,19 @@ label{font-size:11px;letter-spacing:.1em;color:var(--dim);font-family:var(--font
 @keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .waiting{animation:pulse 1.4s ease-in-out infinite}
+.watch-layout{display:flex;flex-direction:column;gap:16px}
+.watch-side{flex:none}
+.watch-main{flex:1;min-width:0}
+.wcode-num{font-family:var(--font-m);font-size:32px;letter-spacing:.15em;color:var(--cyan);text-shadow:0 0 14px var(--cyan-glow);margin:8px 0}
+@media (min-width:900px){
+  .watch-layout{flex-direction:row;align-items:flex-start}
+  .watch-side{width:260px;position:sticky;top:24px}
+  .wcode-num{font-size:38px}
+}
+@media (min-width:1400px){
+  .watch-side{width:320px}
+  .wcode-num{font-size:46px}
+}
 .winbanner{font-family:var(--font-m);font-size:12px;letter-spacing:.2em;color:var(--gold);margin-bottom:6px}
 .streak-badge{font-family:var(--font-m);font-size:11px;color:var(--amber);margin-left:5px}
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--panel-bg);border:1px solid var(--cyan);border-radius:8px;padding:10px 16px;font-weight:600;color:var(--white);box-shadow:0 0 20px -6px var(--cyan-glow);z-index:997;backdrop-filter:blur(8px);animation:toastIn .3s var(--ease),toastOut .3s ease 2.2s forwards}
@@ -633,10 +646,21 @@ const lbPrevScores = {};
 
 function watchView(code){
   const sRef = db.ref('sessions/'+code), pRef = db.ref('participants/'+code);
+  const joinUrl = location.origin+location.pathname+'#/join/'+code;
   app.innerHTML = `<button class="leaveBtn" id="leave" style="margin-bottom:12px">← Выйти</button>
-    <div class="panel center"><label>РЕЖИМ НАБЛЮДАТЕЛЯ</label><h2 id="wtitle">…</h2></div>
-    <div id="watchBody"></div>`;
+    <div class="watch-layout">
+      <div class="watch-side panel center">
+        <label>КОД СЕССИИ</label>
+        <div class="wcode-num">${code}</div>
+        <div class="qrbox" id="wqr"></div>
+      </div>
+      <div class="watch-main">
+        <div class="panel center"><label>РЕЖИМ НАБЛЮДАТЕЛЯ</label><h2 id="wtitle">…</h2></div>
+        <div id="watchBody"></div>
+      </div>
+    </div>`;
   document.getElementById('leave').onclick = ()=>nav('#/');
+  new QRCode(document.getElementById('wqr'), {text: joinUrl, width:150, height:150, colorDark:"#0a1c2e", colorLight:"#ffffff"});
   track(db.ref('reactions/'+code), 'child_added', snap=>spawnReactionFloat(snap.val().emoji));
 
   let total = 0, celebrated = false, bodyBuilt = false;
